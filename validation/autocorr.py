@@ -20,7 +20,7 @@ def assure_path_exists(path):
     if not os.path.exists(dir):
         os.makedirs(dir)
                 
-assure_path_exists(os.getcwd() + '/figures/')
+assure_path_exists(f'{os.getcwd()}/figures/')
 
 def init_plotting():
     '''Sets plotting characteristics'''
@@ -42,27 +42,23 @@ xlabels = ['Lag (months)','Lag (days)']
 tStep = ['monthly','daily']
 nlags = [12,30] # find correlation at all lags for monthly data, but only up to 30 days for daily data
 
-for i in range(len(space)):
+for item in space:
     fig = plt.figure()
-    if space[i] == 'real':
-        title = 'Real'
-    else:
-        title = 'Log'
-    
+    title = 'Real' if item == 'real' else 'Log'
     for j in range(len(nlags)):
-        H = np.loadtxt('historical/' + site + '-' + tStep[j] + '.csv', delimiter=',')
+        H = np.loadtxt(f'historical/{site}-{tStep[j]}.csv', delimiter=',')
         H = H.reshape((np.shape(H)[0]*np.shape(H)[1],))
-        S = np.loadtxt('synthetic/' + site + '-100x100-' + tStep[j] + '.csv', delimiter=',')
-        if space[i] == 'log':
+        S = np.loadtxt(f'synthetic/{site}-100x100-{tStep[j]}.csv', delimiter=',')
+        if item == 'log':
             H = np.log(H)
             S = np.log(S)
-        
+
         ax = fig.add_subplot(1,2,j+1)
         h = [None]*3
         for k in range(100):
           r2 = acf(S[k,:], nlags=nlags[j])
           h[0], = ax.step(range(nlags[j]+1),r2, color='steelblue')
-        
+
         # http://statsmodels.sourceforge.net/devel/generated/statsmodels.tsa.stattools.acf.html
         # plot autocorrelation function
         r1, ci1 = acf(H, nlags=nlags[j], alpha=0.05)
@@ -74,17 +70,17 @@ for i in range(len(space)):
             ax.set_ylim([-1.0,1.0])
         else:
             ax.set_ylim([0.0,1.0])
-        
+
         if j == 0:
             ax.legend(h, ['Synthetic', 'Historical', '95% CI'], loc='upper center')
-        
+
         ax.set_xlabel(xlabels[j])
-        sns.despine(left=True)  
+        sns.despine(left=True)
         ax.xaxis.grid(False)
-    
+
     fig.tight_layout()
     fig.subplots_adjust(top=0.85)
-    fig.suptitle(title + ' Space Autocorrelation',fontsize=16)    
-    fig.savefig('figures/autocorr-' + space[i] + '.pdf')
+    fig.suptitle(f'{title} Space Autocorrelation', fontsize=16)
+    fig.savefig(f'figures/autocorr-{item}.pdf')
     fig.show()
 

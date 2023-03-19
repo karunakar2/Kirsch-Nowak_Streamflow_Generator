@@ -14,13 +14,13 @@ def assure_path_exists(path):
 def MonsoonalRescaling(sites, k, evapIndices):
 
     nSites = len(sites)
-    
+
     daysPerMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
     nMonths = len(daysPerMonth)
     dayOfYear = [0]*(nMonths+1)
     for i in range(nMonths):
         dayOfYear[i+1] = dayOfYear[i] + daysPerMonth[i]
-    
+
     # calculate historical mean and standard deviation of log of monthly flows
     HistoricalDailyQ = np.loadtxt('../data/Qdaily.txt')
     # make normally distributed evaporation log-normal like flows
@@ -34,7 +34,7 @@ def MonsoonalRescaling(sites, k, evapIndices):
         LogQ = np.log(HistoricalMonthlyQ)
         meanMatrix[i,:] = np.mean(LogQ,0)
         stdMatrix[i,:] = np.std(LogQ,0,ddof=1)
-        
+
     # fit harmonics to each site's flows
     modelCoeffs = np.zeros([nSites,2*len(k)])
     intercepts = np.zeros(nSites)
@@ -47,14 +47,17 @@ def MonsoonalRescaling(sites, k, evapIndices):
     # Latin hypercube samples of uncertain streamflow parameters in 'uncertain_params.txt'
     LHsamples = np.loadtxt('LHsamples.txt')
     nScenarios = np.shape(LHsamples)[0]
-    
+
     # calculate rescaled flows
     for i in range(nSites):
-        DailyFlows = np.loadtxt('../validation/synthetic/' + sites[i] + '-1000x1-daily.csv',delimiter=',')
+        DailyFlows = np.loadtxt(
+            f'../validation/synthetic/{sites[i]}-1000x1-daily.csv',
+            delimiter=',',
+        )
         # make normally distributed evaporation log-normal like flows
         if i in evapIndices:
             DailyFlows = np.exp(DailyFlows)
-            
+
         LogMonthlyZ, P = calcLogMonthlyZ(DailyFlows, dayOfYear, meanMatrix[i,:], stdMatrix[i,:])
         for j in range(nScenarios):
             meanMultipliers, stdMultipliers = calcMultipliers(LHsamples[j,0], LHsamples[j,1], [LHsamples[j,2], LHsamples[j,4]],\
@@ -65,22 +68,27 @@ def MonsoonalRescaling(sites, k, evapIndices):
             if i in evapIndices:
                 NewDailyQ = np.log(NewDailyQ)
 
-            np.savetxt('./rescaledFlows/' + sites[i] + '_Sample' + str(j+1) + '.csv',NewDailyQ, fmt='%.3f', delimiter=',')
-    
+            np.savetxt(
+                f'./rescaledFlows/{sites[i]}_Sample{str(j + 1)}.csv',
+                NewDailyQ,
+                fmt='%.3f',
+                delimiter=',',
+            )
+
     return None
     
 def convert_data_to_monthly(Q, daysPerMonth):
 
-    Nyears = int(len(Q)/365)
+    Nyears = len(Q) // 365
     Nmonths = len(daysPerMonth)
     Qmonthly = np.zeros([Nyears,Nmonths])
-    
+
     for year in range(Nyears):
-        for month in range(Nmonths):        
-            start = year*365 + sum(daysPerMonth[0:month])
+        for month in range(Nmonths):
+            start = year*365 + sum(daysPerMonth[:month])
             # mean daily flow rate each month
             Qmonthly[year,month] = np.mean(Q[start:start+daysPerMonth[month]])
-    
+
     return Qmonthly
     
 def calcLogMonthlyZ(DailyFlows, dayOfYear, meanVector, stdVector):
@@ -111,7 +119,7 @@ def calcLogMonthlyZ(DailyFlows, dayOfYear, meanVector, stdVector):
     
 def calcMultipliers(meanM, stdM, Cfactors, phiShifts, coeffs, intercept, T):
     
-    K = int(len(coeffs)/2)
+    K = len(coeffs) // 2
     C = np.zeros(K)
     phi = np.zeros(K)
     for k in range(K):
@@ -122,7 +130,7 @@ def calcMultipliers(meanM, stdM, Cfactors, phiShifts, coeffs, intercept, T):
             phi[k] = np.arctan(coeffs[2*k+1]/coeffs[2*k]) + math.pi
         else:
             phi[k] = math.pi/2
-        
+
     y1 = np.zeros(T)
     y2 = np.zeros(T)
     for t in range(T):
@@ -131,10 +139,10 @@ def calcMultipliers(meanM, stdM, Cfactors, phiShifts, coeffs, intercept, T):
         for k in range(K):
             y1[t] = y1[t] + C[k]*np.cos((2*math.pi*(k+1)*(t+1)/T)-phi[k])
             y2[t] = y2[t] + C[k]*Cfactors[k]*np.cos((2*math.pi*(k+1)*(t+1)/T)-(phi[k]-phiShifts[k]))
-    
-    meanMultipliers = meanM * y2 / y1    
+
+    meanMultipliers = meanM * y2 / y1
     stdMultipliers = stdM * np.ones(len(meanMultipliers))
-    
+
     return meanMultipliers, stdMultipliers
     
 def calcNewMonthlyQ(LogMonthlyZ, meanMultipliers, stdMultipliers, meanVector, stdVector):
@@ -143,11 +151,8 @@ def calcNewMonthlyQ(LogMonthlyZ, meanMultipliers, stdMultipliers, meanVector, st
     for i in range(np.shape(NewLogMonthlyQ)[0]):
         # unstandardize flows with multiplier adjustment
         NewLogMonthlyQ[i,:] = meanVector*meanMultipliers + LogMonthlyZ[i,:]*stdVector*stdMultipliers
-        
-    # convert log space flows to real space
-    NewMonthlyQ = np.exp(NewLogMonthlyQ)
-    
-    return NewMonthlyQ
+
+    return np.exp(NewLogMonthlyQ)
     
 def calcNewDailyQ(NewMonthlyQ, P, dayOfYear, daysPerMonth):
     
@@ -158,7 +163,7 @@ def calcNewDailyQ(NewMonthlyQ, P, dayOfYear, daysPerMonth):
     
     return NewDailyQ
     
-assure_path_exists(os.getcwd() + '/rescaledFlows/')
+assure_path_exists(f'{os.getcwd()}/rescaledFlows/')
 
 sites = ['qMarietta', 'qMuddyRun', 'qLateral', 'evapConowingo']
 k = [1,2] # which harmonics to fit to annual cycle - this is fitting the first two (changing this will require other changes in this code and `uncertain_params.txt`)

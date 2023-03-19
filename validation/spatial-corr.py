@@ -22,7 +22,7 @@ def assure_path_exists(path):
     if not os.path.exists(dir):
         os.makedirs(dir)
                 
-assure_path_exists(os.getcwd() + '/figures/')
+assure_path_exists(f'{os.getcwd()}/figures/')
 
 def init_plotting():
     '''Sets plotting characteristics'''
